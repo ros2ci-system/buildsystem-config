@@ -1,0 +1,23 @@
+# The environment the job scripts run in on Windows.
+#
+# rosdep is the test project's copy, at a fixed commit, so that a rebuild
+# of the image does not silently change it.
+
+[workspace]
+name = "ci"
+channels = ["conda-forge"]
+platforms = ["win-64"]
+
+[dependencies]
+python = "3.12.*"
+catkin_pkg = "*"
+colcon-common-extensions = "*"
+git = "*"
+pip = "*"
+pyyaml = "*"
+rosdistro = "*"
+rospkg = "*"
+vcstool = "*"
+
+[pypi-dependencies]
+rosdep = { url = "https://github.com/ros2ci-test-ros-world/rosdep/archive/d4f7250da5c27b7a947548ea9fef7534d3bcef73.zip" }

@@ -6,6 +6,9 @@
 # What is being built brings its own dependencies; a job installs them
 # when it starts. This image only saves each job from installing the
 # tools every job needs.
+#
+# The build context is the images directory, so that every image can
+# copy in the same job scripts.
 
 FROM docker.io/library/ubuntu:26.04
 
@@ -34,9 +37,16 @@ ENV LANG=en_US.UTF-8
 # The Python build tools go in their own environment, so that they do not
 # fight the system's packages. It can still see the system's packages,
 # because what is built needs the system's Python libraries.
+#
+# rosdep is the test project's copy, at a fixed commit, so that a rebuild
+# of this image does not silently change it.
 RUN python3 -m venv --system-site-packages /opt/ci \
     && /opt/ci/bin/pip install --no-cache-dir \
         colcon-common-extensions \
-        rosdep \
-        vcstool
+        vcstool \
+        https://github.com/ros2ci-test-ros-world/rosdep/archive/d4f7250da5c27b7a947548ea9fef7534d3bcef73.zip
 ENV PATH=/opt/ci/bin:$PATH
+
+# The job scripts: what runs in the container for each kind of job. Last,
+# because they change most often and everything above stays cached.
+COPY job-scripts /opt/job-scripts

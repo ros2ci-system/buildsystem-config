@@ -10,6 +10,9 @@
 # with pixi when it starts. This image only saves each job from
 # installing the tools every job needs. The build tools alone take a long
 # time to install.
+#
+# The build context is the images directory, so that every image can
+# copy in the same job scripts.
 
 FROM mcr.microsoft.com/windows/servercore:ltsc2025
 
@@ -33,3 +36,13 @@ RUN mkdir C:\pixi `
     && tar -xf C:\TEMP\pixi.zip -C C:\pixi `
     && del /q C:\TEMP\pixi.zip `
     && setx /M PATH "%PATH%;C:\pixi"
+
+# A small conda environment for the job scripts themselves: Python, git,
+# vcstool and rosdep. It is separate from the environment a job builds
+# in, which rosdep creates for each job from the workspace's own needs.
+COPY windows-ltsc2025/ci-env C:/ci
+RUN C:\pixi\pixi.exe install --manifest-path C:\ci\pixi.toml
+
+# The job scripts: what runs in the container for each kind of job. Last,
+# because they change most often and everything above stays cached.
+COPY job-scripts C:/job-scripts
