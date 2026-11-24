@@ -3,8 +3,14 @@
 # Copyright 2026 The ros2ci authors
 # SPDX-License-Identifier: Apache-2.0
 
-# Job image for Windows: Windows Server Core, the Visual Studio C++ build
+# Job image for Windows: Windows Server, the Visual Studio C++ build
 # tools, and pixi.
+#
+# The base is the full Windows Server image, as on ci.ros2.org, and not
+# Server Core. Server Core leaves out parts of Windows that the software
+# under test loads: OpenCV needs Media Foundation (MF.dll, MFPlat.dll,
+# MFReadWrite.dll), and without it every program that uses OpenCV fails
+# to start.
 #
 # What is being built brings its own dependencies; a job installs them
 # with pixi when it starts. This image only saves each job from
@@ -14,7 +20,7 @@
 # The build context is the images directory, so that every image can
 # copy in the same job scripts.
 
-FROM mcr.microsoft.com/windows/servercore:ltsc2025
+FROM mcr.microsoft.com/windows/server:ltsc2025
 
 SHELL ["cmd", "/S", "/C"]
 

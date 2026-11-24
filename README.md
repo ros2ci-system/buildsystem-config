@@ -15,7 +15,7 @@ file and anything it copies in.
 |---|---|---|
 | `images/ubuntu-26.04` | Ubuntu 26.04 | Linux builds on Ubuntu |
 | `images/almalinux-10` | AlmaLinux 10 | Linux builds on RHEL 10 and its rebuilds |
-| `images/windows-ltsc2025` | Windows Server Core LTSC 2025 | Windows builds |
+| `images/windows-ltsc2025` | Windows Server LTSC 2025 | Windows builds |
 
 These hold the base operating system and the build tools: a compiler, CMake,
 git, Python, and colcon, vcstool and rosdep. On Windows they hold the Visual
