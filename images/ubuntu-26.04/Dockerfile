@@ -44,16 +44,25 @@ RUN curl -fsSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
 RUN locale-gen en_US.UTF-8
 ENV LANG=en_US.UTF-8
 
-# The Python build tools go in their own environment, so that they do not
-# fight the system's packages. It can still see the system's packages,
-# because what is built needs the system's Python libraries.
-#
+# The build tools are the distribution's packages, so that a build and its
+# tests see the same Python packages a user of the distribution has. In
+# particular nothing here may bring a pytest of its own.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3-catkin-pkg-modules \
+        python3-colcon-common-extensions \
+        python3-rosdistro-modules \
+        python3-rospkg-modules \
+        python3-vcstool \
+        python3-yaml \
+    && rm -rf /var/lib/apt/lists/*
+
 # rosdep is the test project's copy, at a fixed commit, so that a rebuild
-# of this image does not silently change it.
+# of this image does not silently change it. It goes in an environment of
+# its own, without its dependencies: those are the packages above. The
+# environment sees the system's packages, because what is built needs them.
 RUN python3 -m venv --system-site-packages /opt/ci \
-    && /opt/ci/bin/pip install --no-cache-dir \
-        colcon-common-extensions \
-        vcstool \
+    && /opt/ci/bin/pip install --no-cache-dir --no-deps \
         https://github.com/ros2ci-test-ros-world/rosdep/archive/d4f7250da5c27b7a947548ea9fef7534d3bcef73.zip
 ENV PATH=/opt/ci/bin:$PATH
 
