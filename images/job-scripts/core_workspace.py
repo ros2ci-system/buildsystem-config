@@ -365,7 +365,14 @@ class Job:
             raise Failure('build_failed', 'the build failed in: %s' % (', '.join(self.failed) or 'unknown'), EXIT_FAILED)
 
     def run_tests(self):
-        command = ['colcon', 'test', '--event-handlers', 'console_direct+', '--return-code-on-test-failure']
+        # As ci.ros2.org runs them. One package at a time, because tests
+        # of different packages talk over the same network and disturb
+        # each other. A failed test gets one more try, and tests marked
+        # as expected to fail are left out.
+        command = ['colcon', 'test', '--event-handlers', 'console_direct+', '--return-code-on-test-failure',
+                   '--executor', 'sequential', '--retest-until-pass', '2']
+        # Last, because these two take every argument that follows them.
+        passed_on = ['--ctest-args', '-LE', 'xfail', '--pytest-args', '-m', 'not xfail']
         if WINDOWS:
             command.append('--merge-install')
         tested = {'Finished': [], 'Failed': [], 'Aborted': []}
@@ -375,7 +382,7 @@ class Job:
             if match:
                 tested[match.group(1)].append(match.group(2))
 
-        code = self.in_build_environment(command + self.selection(), watch=watch)
+        code = self.in_build_environment(command + self.selection() + passed_on, watch=watch)
         self.tests = collect_test_results(os.path.join(WORKSPACE, 'build'))
         print('\nTests: %(total)d run, %(failed)d failed, %(errors)d errors, %(skipped)d skipped' % self.tests)
         if tested['Aborted']:
