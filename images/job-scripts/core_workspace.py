@@ -365,12 +365,10 @@ class Job:
             raise Failure('build_failed', 'the build failed in: %s' % (', '.join(self.failed) or 'unknown'), EXIT_FAILED)
 
     def run_tests(self):
-        # As ci.ros2.org runs them. One package at a time, because tests
-        # of different packages talk over the same network and disturb
-        # each other. A failed test gets one more try, and tests marked
-        # as expected to fail are left out.
+        # As the nightly jobs on ci.ros2.org run them: a failed test gets
+        # one more try, and tests marked as expected to fail are left out.
         command = ['colcon', 'test', '--event-handlers', 'console_direct+', '--return-code-on-test-failure',
-                   '--executor', 'sequential', '--retest-until-pass', '2']
+                   '--retest-until-pass', '2']
         # Last, because these two take every argument that follows them.
         passed_on = ['--ctest-args', '-LE', 'xfail', '--pytest-args', '-m', 'not xfail']
         if WINDOWS:
