@@ -44,6 +44,9 @@ Parameters, all optional:
     Build and test only these packages and what they need.
 ``skip_keys``
     rosdep keys the image provides, which rosdep is not to resolve.
+``cmake_build_type``
+    The CMake build type. Default ``Release``, as in the nightly release
+    jobs of ci.ros2.org.
 ``cmake_args``
     Extra arguments for CMake.
 ``test``
@@ -146,9 +149,10 @@ class Job:
         self.resolution = params.get('resolution', 'conda' if WINDOWS else 'system')
         self.up_to = params.get('packages_up_to', [])
         self.skip_keys = params.get('skip_keys', [])
+        self.build_type = params.get('cmake_build_type', 'Release')
         self.cmake_args = params.get('cmake_args', [])
         self.test = params.get('test', True)
-        for name, value in (('rosdistro', self.rosdistro),):
+        for name, value in (('rosdistro', self.rosdistro), ('cmake_build_type', self.build_type.lower())):
             if not re.match(r'^[a-z][a-z0-9_]*$', value):
                 raise Failure('bad_parameters', '%s is not a valid %s' % (value, name), EXIT_FAILED)
         if self.resolution not in ('system', 'conda'):
@@ -364,7 +368,7 @@ class Job:
 
     def build(self):
         command = ['colcon', 'build', '--event-handlers', 'console_cohesion+', 'console_package_list+']
-        cmake_args = ['-DCMAKE_BUILD_TYPE=RelWithDebInfo'] + list(self.cmake_args)
+        cmake_args = ['-DCMAKE_BUILD_TYPE=' + self.build_type] + list(self.cmake_args)
         if WINDOWS:
             # One install directory keeps paths short, and Ninja uses the
             # compiler the environment already points at.
