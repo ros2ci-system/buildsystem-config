@@ -82,7 +82,8 @@ DEFAULT_RULES = ['rosdep/base.yaml', 'rosdep/python.yaml']
 
 # The tools a conda environment needs in order to build, as rosdep keys.
 # On a system image they are part of the image.
-CONDA_TOOL_KEYS = ['cmake', 'git', 'ninja-build', 'python3-colcon-common-extensions']
+CONDA_TOOL_KEYS = ['cmake', 'git', 'ninja-build', 'python3-colcon-common-extensions',
+                   'python3-colcon-ros-domain-id-coordinator']
 
 
 class Failure(Exception):
@@ -367,7 +368,10 @@ class Job:
             {'Finished': self.built, 'Failed': self.failed, 'Aborted': self.aborted}[match.group(1)].append(match.group(2))
 
     def build(self):
-        command = ['colcon', 'build', '--event-handlers', 'console_cohesion+', 'console_package_list+']
+        # Only what is under src: the workspace directory also holds the
+        # package that asks for the build tools, which is not to be built.
+        command = ['colcon', 'build', '--base-paths', 'src',
+                   '--event-handlers', 'console_cohesion+', 'console_package_list+']
         cmake_args = ['-DCMAKE_BUILD_TYPE=' + self.build_type] + list(self.cmake_args)
         if WINDOWS:
             # One install directory keeps paths short, and Ninja uses the
@@ -382,7 +386,8 @@ class Job:
     def run_tests(self):
         # As the nightly jobs on ci.ros2.org run them: a failed test gets
         # one more try, and tests marked as expected to fail are left out.
-        command = ['colcon', 'test', '--event-handlers', 'console_direct+', '--return-code-on-test-failure',
+        command = ['colcon', 'test', '--base-paths', 'src',
+                   '--event-handlers', 'console_direct+', '--return-code-on-test-failure',
                    '--retest-until-pass', '2']
         # Last, because these two take every argument that follows them.
         passed_on = ['--ctest-args', '-LE', 'xfail', '--pytest-args', '-m', 'not xfail']

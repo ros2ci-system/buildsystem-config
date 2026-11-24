@@ -42,6 +42,7 @@ ENV LANG=en_US.UTF-8
 RUN dnf install -y \
         python3-catkin_pkg \
         python3-colcon-common-extensions \
+        python3-colcon-ros-domain-id-coordinator \
         python3-pyyaml \
         python3-rosdistro \
         python3-rospkg \

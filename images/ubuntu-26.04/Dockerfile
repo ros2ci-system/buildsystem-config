@@ -51,6 +51,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         python3-catkin-pkg-modules \
         python3-colcon-common-extensions \
+        python3-colcon-ros-domain-id-coordinator \
         python3-rosdistro-modules \
         python3-rospkg-modules \
         python3-vcstool \
