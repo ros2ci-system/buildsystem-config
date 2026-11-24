@@ -21,6 +21,7 @@ RUN apt-get update \
         cmake \
         curl \
         git \
+        gnupg \
         locales \
         patch \
         python3 \
@@ -29,6 +30,15 @@ RUN apt-get update \
         python3-venv \
         tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+# The ROS package repository, as the image of ci.ros2.org has it. A few
+# dependencies of the core are packaged only there, such as
+# python3-rosdistro-modules. The key is in a file that only this
+# repository is checked against.
+RUN curl -fsSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+        | gpg --dearmor -o /usr/share/keyrings/ros-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://repo.ros2.org/ubuntu/testing/ resolute main" \
+        > /etc/apt/sources.list.d/ros2-testing.list
 
 # Tools and tests assume a UTF-8 locale.
 RUN locale-gen en_US.UTF-8
