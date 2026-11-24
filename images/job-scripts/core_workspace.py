@@ -195,13 +195,18 @@ class Job:
         """Run a command where the compiler and the dependencies are."""
         if self.resolution == 'system':
             return run(command, cwd=WORKSPACE, env=self.env, **kwargs)
-        inner = ['pixi', 'run', '--manifest-path', self.manifest] + command
+        pixi = ['pixi', 'run', '--manifest-path', self.manifest]
         if WINDOWS:
             # The Visual Studio tools are found through a batch file that
-            # sets up the environment of the shell that calls it.
-            line = 'call "%s" >NUL && %s' % (VCVARS, subprocess.list2cmdline(inner))
-            return run(inner, cwd=WORKSPACE, env=self.env, shell_string=line, **kwargs)
-        return run(inner, cwd=WORKSPACE, env=self.env, **kwargs)
+            # sets up the environment of the shell that calls it. It is
+            # called inside the conda environment, as ci.ros2.org does, so
+            # that Visual Studio's tools come first on the path: the conda
+            # environment has a link.exe of its own, which is not a linker.
+            wrapper = os.path.join(WORKSPACE, 'in_vs.cmd')
+            with open(wrapper, 'w', newline='\r\n') as f:
+                f.write('@echo off\ncall "%s" >NUL || exit /b 1\ncall %%*\n' % VCVARS)
+            pixi.append(wrapper)
+        return run(pixi + command, cwd=WORKSPACE, env=self.env, **kwargs)
 
     def selected_paths(self):
         """The source directories of the packages to build."""
