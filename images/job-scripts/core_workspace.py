@@ -179,6 +179,12 @@ class Job:
             'PYTHONUNBUFFERED': '1',
         })
 
+        # The build and the tests get none of that. What is set for rosdep
+        # changes how the code under test behaves: ROS_HOME, for one, is
+        # where ROS itself writes its logs.
+        self.build_env = dict(os.environ)
+        self.build_env['PYTHONUNBUFFERED'] = '1'
+
     # -- helpers -----------------------------------------------------
 
     def stage(self, name, function):
@@ -194,7 +200,7 @@ class Job:
     def in_build_environment(self, command, **kwargs):
         """Run a command where the compiler and the dependencies are."""
         if self.resolution == 'system':
-            return run(command, cwd=WORKSPACE, env=self.env, **kwargs)
+            return run(command, cwd=WORKSPACE, env=self.build_env, **kwargs)
         pixi = ['pixi', 'run', '--manifest-path', self.manifest]
         if WINDOWS:
             # The Visual Studio tools are found through a batch file that
@@ -206,7 +212,7 @@ class Job:
             with open(wrapper, 'w', newline='\r\n') as f:
                 f.write('@echo off\ncall "%s" >NUL || exit /b 1\ncall %%*\n' % VCVARS)
             pixi.append(wrapper)
-        return run(pixi + command, cwd=WORKSPACE, env=self.env, **kwargs)
+        return run(pixi + command, cwd=WORKSPACE, env=self.build_env, **kwargs)
 
     def selected_paths(self):
         """The source directories of the packages to build."""
