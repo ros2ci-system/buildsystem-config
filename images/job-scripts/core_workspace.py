@@ -189,6 +189,12 @@ class Job:
         # where ROS itself writes its logs.
         self.build_env = dict(os.environ)
         self.build_env['PYTHONUNBUFFERED'] = '1'
+        if WINDOWS and self.resolution == 'conda':
+            # Qt finds its platform plugin through this. The pixi.toml of
+            # ros2/ros2 sets it when its environment is activated; the
+            # manifest rosdep writes has no such setting.
+            self.build_env['QT_QPA_PLATFORM_PLUGIN_PATH'] = os.path.join(
+                WORKSPACE, '.pixi', 'envs', 'default', 'Library', 'lib', 'qt6', 'plugins', 'platforms')
 
     # -- helpers -----------------------------------------------------
 
