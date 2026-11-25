@@ -47,11 +47,17 @@ ENV LANG=en_US.UTF-8
 # The build tools are the distribution's packages, so that a build and its
 # tests see the same Python packages a user of the distribution has. In
 # particular nothing here may bring a pytest of its own.
+#
+# pytest-repeat and pytest-rerunfailures are what colcon uses to run a
+# failed pytest again under --retest-until-pass. Without them a Python
+# test that fails once is not retried. ci.ros2.org installs both.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         python3-catkin-pkg-modules \
         python3-colcon-common-extensions \
         python3-colcon-ros-domain-id-coordinator \
+        python3-pytest-repeat \
+        python3-pytest-rerunfailures \
         python3-rosdistro-modules \
         python3-rospkg-modules \
         python3-vcstool \
