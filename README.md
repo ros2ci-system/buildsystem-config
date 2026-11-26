@@ -105,6 +105,10 @@ rosdep knows which keys are ROS packages:
 "inputs": [{"name": "source.tar.gz", "url": "archive:4b44be6b..."}]
 ```
 
+The Ubuntu image has the ROS package repository for a few tools that are
+packaged only there. apt is told never to take a `ros-*` package from it,
+so a package build cannot pick up a ROS package that build.ros2.org built.
+
 ## Releases
 
 `jobs/release-check.json` and `jobs/source-archive.json` describe the two jobs
@@ -128,10 +132,6 @@ ci-admin release --rosdistro-url https://raw.githubusercontent.com/ros2ci-test-r
   tag again, and reports a tag that now names another commit, or is gone.
   A changed entry for an archived version is a problem: a change needs a
   new version.
-
-The Ubuntu image has the ROS package repository for a few tools that are
-packaged only there. apt is told never to take a `ros-*` package from it,
-so a package build cannot pick up a ROS package that build.ros2.org built.
 
 ## License
 
