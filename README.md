@@ -130,8 +130,28 @@ ci-admin release --rosdistro-url https://raw.githubusercontent.com/ros2ci-test-r
   tarball.
 - **A release that is archived stays as it is.** The check only looks at its
   tag again, and reports a tag that now names another commit, or is gone.
-  A changed entry for an archived version is a problem: a change needs a
-  new version.
+  Its list of packages to skip may still change: the release is then read
+  again at the archived commit. Another source repository or tag for an
+  archived version is a problem.
+
+## The reconciler's settings
+
+`reconciler/home-lab.json` is what the coordinator's reconciler is given with
+`ci-admin reconcile-config`: the rosdistro repository and branch to follow,
+the release check and source archive jobs, and one entry for each target.
+
+A target names the repository it publishes into, where job containers reach
+that repository, the platform rosdep resolves keys for, the package names a
+build may publish, and the job that builds a package. Two settings are worth
+knowing:
+
+- `tests` says whether builds for the target run the packages' tests. It is
+  off for both targets for now. With it on, a failed test fails the build,
+  and several core packages fail tests that pass in a workspace build,
+  because of where a packaging tool builds and runs them. With it off, a
+  package also does not wait for what only its tests depend on.
+- `skip_keys` lists rosdep keys that builds for the target leave out. The
+  RHEL target skips `pydocstyle`, which has no RPM on RHEL 10.
 
 ## License
 

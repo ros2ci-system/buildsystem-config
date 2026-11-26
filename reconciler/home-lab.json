@@ -1,0 +1,119 @@
+{
+  "rosdistro": "rolling",
+  "rosdistro_repository": "https://github.com/ros2ci-test-ros-world/rosdistro.git",
+  "rosdistro_branch": "m10",
+  "rosdistro_files": "https://raw.githubusercontent.com/ros2ci-test-ros-world/rosdistro",
+  "poll_seconds": 60,
+  "build_retries": 2,
+  "retry_backoff_seconds": 600,
+  "check": {
+    "pool": "release",
+    "os": "linux",
+    "arch": "amd64",
+    "job": {
+      "image": {
+        "build": {
+          "context": "stored:images.tar",
+          "build_file": "ubuntu-26.04/Dockerfile"
+        }
+      },
+      "command": [
+        "/opt/ci/bin/python",
+        "/opt/job-scripts/release.py"
+      ],
+      "parameters": {},
+      "timeout_seconds": 1800
+    }
+  },
+  "archive": {
+    "pool": "release",
+    "os": "linux",
+    "arch": "amd64",
+    "job": {
+      "image": {
+        "build": {
+          "context": "stored:images.tar",
+          "build_file": "ubuntu-26.04/Dockerfile"
+        }
+      },
+      "command": [
+        "/opt/ci/bin/python",
+        "/opt/job-scripts/release.py"
+      ],
+      "parameters": {},
+      "timeout_seconds": 1800
+    }
+  },
+  "targets": [
+    {
+      "pool": "release",
+      "os": "linux",
+      "arch": "amd64",
+      "name": "ubuntu-resolute-amd64",
+      "repository": "rolling-resolute",
+      "repository_url": "http://coordinator:8445/rolling-resolute",
+      "platform": {
+        "os": "ubuntu",
+        "version": "resolute"
+      },
+      "names": [
+        "ros-rolling-{name}",
+        "ros-rolling-{name}-dbgsym"
+      ],
+      "tests": false,
+      "job": {
+        "image": {
+          "build": {
+            "context": "stored:images.tar",
+            "build_file": "ubuntu-26.04/Dockerfile"
+          }
+        },
+        "command": [
+          "/opt/ci/bin/python",
+          "/opt/job-scripts/package_build.py"
+        ],
+        "parameters": {},
+        "timeout_seconds": 3600
+      }
+    },
+    {
+      "pool": "release",
+      "os": "linux",
+      "arch": "amd64",
+      "name": "rhel-10-amd64",
+      "repository": "rolling-el10",
+      "repository_url": "http://coordinator:8445/rolling-el10",
+      "platform": {
+        "os": "rhel",
+        "version": "10"
+      },
+      "skip_keys": [
+        "pydocstyle"
+      ],
+      "names": [
+        "ros-rolling-{name}",
+        "ros-rolling-{name}-devel",
+        "ros-rolling-{name}-runtime",
+        "ros-rolling-{name}-debugsource",
+        "ros-rolling-{name}-debuginfo",
+        "ros-rolling-{name}-devel-debuginfo",
+        "ros-rolling-{name}-runtime-debuginfo"
+      ],
+      "tests": false,
+      "job": {
+        "image": {
+          "build": {
+            "context": "stored:images.tar",
+            "build_file": "almalinux-10/Dockerfile"
+          }
+        },
+        "command": [
+          "/opt/ci/bin/python",
+          "/opt/job-scripts/package_build.py"
+        ],
+        "parameters": {},
+        "timeout_seconds": 3600
+      }
+    }
+  ]
+}

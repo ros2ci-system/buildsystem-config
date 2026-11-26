@@ -756,7 +756,37 @@ class RpmJob(Job):
             raise Failure('packaging_failed', 'the build dependencies did not settle', EXIT_FAILED)
         for path in glob.glob(os.path.join(self.topdir, 'SRPMS', '*.rpm')):
             os.remove(path)
+        if self.test:
+            self.install_run_dependencies()
         self.record_installed()
+
+    def install_run_dependencies(self):
+        """
+        Install what the package needs to run, for its tests.
+
+        The tests run the package. bloom's macros name the test
+        dependencies as build dependencies, and not what the package
+        itself needs at run time, because the farm they were written for
+        builds without tests.
+        """
+        import subprocess
+        command = [self.BLOOM_DEPS, os.path.join(self.tree, 'package.xml'), self.package_name + '-runtime',
+                   '--requires', '--resolve-groups']
+        if self.skip_keys:
+            command += ['--skip-keys'] + self.skip_keys
+        result = subprocess.run(command, env=self.env, stdout=subprocess.PIPE, errors='replace')
+        if result.returncode != 0:
+            raise Failure('unresolved_dependencies', 'the run-time dependencies do not resolve', EXIT_FAILED)
+        wanted = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        if not wanted:
+            return
+        print('Run-time dependencies, for the tests: %s' % ', '.join(wanted))
+        for attempt in (1, 2):
+            if run(['dnf', 'install', '-y'] + wanted, env=self.env) == 0:
+                return
+            print('-- failed; trying again in 20 seconds', flush=True)
+            time.sleep(20)
+        raise Failure('install_failed', 'the run-time dependencies could not be installed', EXIT_FAILED)
 
     def build(self):
         env = self.build_env()
@@ -862,10 +892,19 @@ def write_local_rosdistro(directory, rosdistro, index_entry, platforms, releases
 
     ``index_entry`` is the distribution's entry in the original index.
     ``releases`` is a list of dicts with ``repository``, ``url``,
-    ``version``, ``tag`` and ``packages``, a list of names. Returns the
-    path of the distribution file; the index is ``index-v4.yaml``.
+    ``version``, ``tag`` and ``packages``, a list of names, and optionally
+    ``groups``, which maps a package to the groups it is a member of.
+    Returns the path of the distribution file; the index is
+    ``index-v4.yaml``.
+
+    A cache is written beside the distribution file, which is where
+    bloom's RPM macros look up the members of a group. It holds a
+    manifest for each package with nothing in it but the name, the
+    version and the groups.
     """
+    import gzip
     import yaml
+    from xml.sax.saxutils import escape
 
     repositories = {}
     for release in releases:
@@ -876,16 +915,31 @@ def write_local_rosdistro(directory, rosdistro, index_entry, platforms, releases
             'version': release['version'],
         }}
     os.makedirs(os.path.join(directory, rosdistro))
-    entry = dict(index_entry, distribution=['%s/distribution.yaml' % rosdistro])
-    entry.pop('distribution_cache', None)
+    entry = dict(index_entry, distribution=['%s/distribution.yaml' % rosdistro],
+                 distribution_cache='%s-cache.yaml.gz' % rosdistro)
     with open(os.path.join(directory, 'index-v4.yaml'), 'w') as f:
         f.write('%YAML 1.1\n---\n')
         yaml.safe_dump({'distributions': {rosdistro: entry}, 'type': 'index', 'version': 4}, f)
     path = os.path.join(directory, rosdistro, 'distribution.yaml')
+    distribution = {'release_platforms': platforms, 'repositories': repositories,
+                    'type': 'distribution', 'version': 2}
     with open(path, 'w') as f:
         f.write('%YAML 1.1\n---\n')
-        yaml.safe_dump({'release_platforms': platforms, 'repositories': repositories,
-                        'type': 'distribution', 'version': 2}, f)
+        yaml.safe_dump(distribution, f)
+    manifests = {}
+    for release in releases:
+        for name in release['packages']:
+            groups = ''.join('<member_of_group>%s</member_of_group>' % escape(group)
+                             for group in (release.get('groups') or {}).get(name, []))
+            manifests[name] = (
+                '<?xml version="1.0"?><package format="3"><name>%s</name><version>%s</version>'
+                '<description>%s</description><maintainer email="nobody@example.invalid">nobody</maintainer>'
+                '<license>none</license>%s</package>' % (escape(name), escape(release['version']), escape(name),
+                                                         groups))
+    with gzip.open(os.path.join(directory, '%s-cache.yaml.gz' % rosdistro), 'wt') as f:
+        yaml.safe_dump({'type': 'cache', 'version': 2, 'name': rosdistro,
+                        'distribution_file': [distribution], 'release_package_xmls': manifests,
+                        'source_repo_package_xmls': {}}, f)
     return path
 
 

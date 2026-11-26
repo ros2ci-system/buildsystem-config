@@ -93,7 +93,7 @@ RUN apt-get update \
         fakeroot \
     && rm -rf /var/lib/apt/lists/*
 RUN /opt/ci/bin/pip install --no-cache-dir --no-deps \
-        https://github.com/ros2ci-test-ros-world/dyndeb/archive/7a6c8f3cea829c72fc1b04c15aa533d2b8bbb1df.zip
+        https://github.com/ros2ci-test-ros-world/dyndeb/archive/478ed1a115916e4e0f01f6fce03aa2e9a71f2092.zip
 
 # The job scripts: what runs in the container for each kind of job. Last,
 # because they change most often and everything above stays cached.

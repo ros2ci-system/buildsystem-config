@@ -62,7 +62,8 @@ Parameters of the release check:
     and ``skipped``.
 ``targets``
     The targets to resolve keys for: a list of objects with ``os``,
-    ``version`` and ``required``. Default: every platform the
+    ``version``, ``required`` and ``skip_keys``, the keys that builds for
+    the target are told to leave out. Default: every platform the
     distribution file names, all required.
 
 Parameters of the source archive job: ``rosdistro``, ``rosdistro_url``,
@@ -197,7 +198,11 @@ def find_packages(directory):
             problems.append('%s/package.xml is not valid: %s' % (path, ' '.join(str(e).split())))
             continue
         found.append({'name': parsed.name, 'path': path, 'version': parsed.version,
-                      'build_type': parsed.get_build_type(), 'parsed': parsed})
+                      'build_type': parsed.get_build_type(), 'depends': dependency_keys(parsed),
+                      'test_depends': test_only_keys(parsed),
+                      'groups': sorted(group.name for group in parsed.member_of_groups
+                                       if group.evaluated_condition is not False),
+                      'parsed': parsed})
     return found, problems
 
 
@@ -268,12 +273,13 @@ def fetch_rules(rosdistro_url, rosdistro, rules, env):
 class Target:
     """Answers whether a rosdep key has a package on one platform."""
 
-    def __init__(self, rosdistro, os_name, os_version, required):
+    def __init__(self, rosdistro, os_name, os_version, required, skip_keys=()):
         from rosdep2 import create_default_installer_context
         from rosdep2.catkin_support import get_catkin_view
 
         self.os_name, self.os_version, self.required = os_name, str(os_version), required
         self.label = '%s %s' % (os_name, os_version)
+        self.skip_keys = set(skip_keys)
         context = create_default_installer_context()
         self.installer_keys = context.get_os_installer_keys(os_name)
         self.default_installer_key = context.get_default_os_installer_key(os_name)
@@ -283,6 +289,8 @@ class Target:
         """Why the key does not resolve here, or None if it does."""
         from rosdep2 import ResolutionError
 
+        if key in self.skip_keys:
+            return None
         try:
             definition = self.view.lookup(key)
         except KeyError:
@@ -297,13 +305,28 @@ class Target:
         return None
 
 
+# Every package depends on ros_workspace without saying so, except the
+# packages ros_workspace is itself built from. The packaging adds that
+# dependency, so the order of builds has to know it too.
+WITHOUT_ROS_WORKSPACE = ('ament_cmake_core', 'ament_package', 'ros_workspace')
+
+
 def dependency_keys(parsed):
-    """Every rosdep key a package names for building, running or testing."""
-    keys = set()
+    """
+    Every rosdep key a package needs to be built and to run: the ones it
+    names, and ros_workspace.
+    """
+    keys = set() if parsed.name in WITHOUT_ROS_WORKSPACE else {'ros_workspace'}
     for dependencies in (parsed.build_depends, parsed.buildtool_depends, parsed.build_export_depends,
-                         parsed.buildtool_export_depends, parsed.exec_depends, parsed.test_depends):
+                         parsed.buildtool_export_depends, parsed.exec_depends):
         keys.update(d.name for d in dependencies if d.evaluated_condition is not False)
     return sorted(keys)
+
+
+def test_only_keys(parsed):
+    """The rosdep keys a package needs for its tests and for nothing else."""
+    keys = {d.name for d in parsed.test_depends if d.evaluated_condition is not False}
+    return sorted(keys - set(dependency_keys(parsed)))
 
 
 def release_check(params):
@@ -347,7 +370,14 @@ def release_check(params):
         known = archived.get((name, release['version']))
         record = dict(release, commit=commit, packages=[], skipped=[])
         releases.append(record)
-        if known:
+        # The list of packages to skip may change for an archived release:
+        # the tarball stays the same, and only what is built from it
+        # changes. The release is then read again, at the archived commit.
+        reread = bool(known) and sorted(known.get('skipped', [])) != release['skip']
+        if reread and commit != known['commit']:
+            problem(name, 'the list of packages to skip changed, but tag %s no longer names the archived '
+                          'commit %s' % (release['tag'], known['commit']))
+        if known and not reread:
             # Already archived: builds read the archive, whatever upstream
             # does. What is worth knowing is whether the tag still says
             # the same thing.
@@ -356,8 +386,7 @@ def release_check(params):
             # What was archived is the release. An entry that now says
             # something else about the same version cannot take effect.
             for what, was, now in (('url', known.get('url'), release['url']),
-                                   ('tag', known.get('tag'), release['tag']),
-                                   ('skip', sorted(known.get('skipped', [])), release['skip'])):
+                                   ('tag', known.get('tag'), release['tag'])):
                 if was is not None and was != now:
                     problem(name, 'version %s is already archived with another %s; a change to a release '
                                   'needs a new version' % (release['version'], what))
@@ -425,15 +454,17 @@ def release_check(params):
         # must be reported here, not trip rosdep up.
         write_local_rosdistro(os.path.join(WORK, 'rosdistro'), rosdistro, index_entry,
                               distribution.get('release_platforms') or {},
-                              [dict(record, packages=[p['name'] for p in record['packages']])
+                              [dict(record, packages=[p['name'] for p in record['packages']],
+                                    groups={p['name']: p.get('groups', []) for p in record['packages']})
                                for record in releases if record['packages']])
         env['ROSDISTRO_INDEX_URL'] = 'file://' + os.path.join(WORK, 'rosdistro', 'index-v4.yaml')
         os.environ['ROSDISTRO_INDEX_URL'] = env['ROSDISTRO_INDEX_URL']
         fetch_rules(rosdistro_url, rosdistro, rules, env)
-        resolvers = [Target(rosdistro, t['os'], t['version'], t.get('required', True)) for t in targets]
+        resolvers = [Target(rosdistro, t['os'], t['version'], t.get('required', True), t.get('skip_keys', ()))
+                     for t in targets]
         for name, packages in sorted(checked.items()):
             for package in packages:
-                for key in dependency_keys(package['parsed']):
+                for key in package['depends'] + package['test_depends']:
                     if key in released:
                         continue
                     for target in resolvers:
