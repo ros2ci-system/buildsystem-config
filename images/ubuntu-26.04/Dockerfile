@@ -73,6 +73,18 @@ RUN python3 -m venv --system-site-packages /opt/ci \
         https://github.com/ros2ci-test-ros-world/rosdep/archive/d4f7250da5c27b7a947548ea9fef7534d3bcef73.zip
 ENV PATH=/opt/ci/bin:$PATH
 
+# What a package build needs: the Debian packaging tools, and dyndeb, which
+# writes a ROS package's debian directory from its package.xml. dyndeb is
+# installed the way rosdep is, at a fixed commit and without dependencies.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        debhelper \
+        dh-python \
+        fakeroot \
+    && rm -rf /var/lib/apt/lists/*
+RUN /opt/ci/bin/pip install --no-cache-dir --no-deps \
+        https://github.com/ros2ci-test-ros-world/dyndeb/archive/4d30bcc453e96a00668117f7d8a875e788bf6d77.zip
+
 # The job scripts: what runs in the container for each kind of job. Last,
 # because they change most often and everything above stays cached.
 COPY job-scripts /opt/job-scripts

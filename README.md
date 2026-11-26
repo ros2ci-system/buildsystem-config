@@ -42,6 +42,33 @@ where `build-ubuntu.json` is:
 }
 ```
 
+## Job scripts
+
+`images/job-scripts` holds what runs inside a job container, one script per
+kind of job. Every image copies them in.
+
+| Script | Job |
+|---|---|
+| `core_workspace.py` | Builds a workspace from source and tests it |
+| `package_build.py` | Builds one ROS package as a package of the target. Debian packages only so far, so it runs in the Ubuntu image |
+
+A package build takes the source as a tarball and the package's name:
+
+```json
+{
+  "image": {"build": {"context": "stored:images.tar", "build_file": "ubuntu-26.04/Dockerfile"}},
+  "command": ["/opt/ci/bin/python", "/opt/job-scripts/package_build.py"],
+  "parameters": {"package": "ament_package", "rosdistro": "rolling"},
+  "inputs": [{"name": "source.tar.gz", "url": "https://example.com/ament_package.tar.gz"}],
+  "timeout_seconds": 3600
+}
+```
+
+It leaves the binary package, the source package and `results.json` in the
+job's outputs. The packaging is written during the job by
+[dyndeb](https://github.com/ros2ci-test-ros-world/dyndeb). The top of each
+script lists its parameters.
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
