@@ -50,7 +50,7 @@ kind of job. Every image copies them in.
 | Script | Job |
 |---|---|
 | `core_workspace.py` | Builds a workspace from source and tests it |
-| `package_build.py` | Builds one ROS package as a package of the target. Debian packages only so far, so it runs in the Ubuntu image |
+| `package_build.py` | Builds one ROS package as a package of the target: Debian packages in the Ubuntu image, RPM packages in the AlmaLinux image |
 
 A package build takes the source as a tarball and the package's name:
 
@@ -64,10 +64,15 @@ A package build takes the source as a tarball and the package's name:
 }
 ```
 
-It leaves the binary package, the source package and `results.json` in the
-job's outputs. The packaging is written during the job by
-[dyndeb](https://github.com/ros2ci-test-ros-world/dyndeb). The top of each
-script lists its parameters.
+It leaves the binary packages, the source package, a copy of the rosdep rules
+it resolved dependencies from, and `results.json` in the job's outputs. The
+same job description builds RPM packages when its `build_file` is
+`almalinux-10/Dockerfile`.
+
+The packaging is written during the job: for Debian by
+[dyndeb](https://github.com/ros2ci-test-ros-world/dyndeb), and for RPM by
+bloom's dynamic RPM generator with the `bloom-rpm-macros` package, as on
+build.ros2.org. The top of each script lists its parameters.
 
 ## License
 

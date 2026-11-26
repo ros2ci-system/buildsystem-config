@@ -64,6 +64,38 @@ RUN python3 -m venv --system-site-packages /opt/ci \
         https://github.com/ros2ci-test-ros-world/rosdep/archive/d4f7250da5c27b7a947548ea9fef7534d3bcef73.zip
 ENV PATH=/opt/ci/bin:$PATH
 
+# What a package build needs: rpmbuild, and bloom's dynamic RPM support,
+# which is what build.ros2.org builds RHEL 10 packages with. It has two
+# halves, kept at the same version:
+#
+# - bloom itself, which writes a package's spec file from its package.xml.
+#   Installed without dependencies; they are the packages beside it.
+# - the bloom-rpm-macros package, whose macros resolve a package's
+#   dependencies through rosdep while rpmbuild runs. It is published only
+#   in the ROS repository, so that repository is added for this one
+#   package and nothing else. It brings the distribution's own rosdep with
+#   it, which the macros use.
+RUN curl -fsSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+        -o /etc/pki/rpm-gpg/RPM-GPG-KEY-ros \
+    && printf '%s\n' \
+        '[ros2-testing]' \
+        'name=ROS 2 testing' \
+        'baseurl=http://repo.ros2.org/rhel/testing/$releasever/$basearch/' \
+        'gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-ros' \
+        'repo_gpgcheck=1' \
+        'gpgcheck=0' \
+        'enabled=1' \
+        'includepkgs=bloom-rpm-macros' \
+        > /etc/yum.repos.d/ros2-testing.repo \
+    && dnf install -y \
+        bloom-rpm-macros-0.14.4 \
+        python3-dateutil \
+        python3-empy \
+        python3-packaging \
+        rpm-build \
+    && dnf clean all
+RUN /opt/ci/bin/pip install --no-cache-dir --no-deps bloom==0.14.4
+
 # The job scripts: what runs in the container for each kind of job. Last,
 # because they change most often and everything above stays cached.
 COPY job-scripts /opt/job-scripts
