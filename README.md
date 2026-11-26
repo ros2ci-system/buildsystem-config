@@ -74,6 +74,28 @@ The packaging is written during the job: for Debian by
 bloom's dynamic RPM generator with the `bloom-rpm-macros` package, as on
 build.ros2.org. The top of each script lists its parameters.
 
+The ROS packages a package depends on are installed as packages. The job
+names the repositories to take them from, each with the key its index is
+signed with:
+
+```json
+"parameters": {
+  "package": "ament_cmake_core",
+  "revision": 2,
+  "repositories": [{"url": "http://coordinator:8445/rolling-resolute", "key": "-----BEGIN PGP PUBLIC KEY BLOCK-----\n..."}]
+}
+```
+
+`revision` is the rebuild counter the coordinator handed out for this build;
+the package's version ends in it. The job also leaves `repo-metadata.json`,
+which describes each package it built the way the distribution's own tools
+do (`dpkg-deb`, `createrepo_c`). The coordinator checks that description
+when the build is published, and writes the repository's index from it.
+
+The Ubuntu image has the ROS package repository for a few tools that are
+packaged only there. apt is told never to take a `ros-*` package from it,
+so a package build cannot pick up a ROS package that build.ros2.org built.
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).

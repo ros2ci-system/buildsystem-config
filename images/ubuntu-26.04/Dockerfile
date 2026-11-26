@@ -40,6 +40,16 @@ RUN curl -fsSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://repo.ros2.org/ubuntu/testing/ resolute main" \
         > /etc/apt/sources.list.d/ros2-testing.list
 
+# That repository also holds the ROS packages themselves, as build.ros2.org
+# built them. A package build must never install those: the ROS packages
+# it depends on come from the repository its job names. This keeps apt
+# from choosing a ros-* package from there, whatever its version.
+RUN printf '%s\n' \
+        'Package: ros-*' \
+        'Pin: origin repo.ros2.org' \
+        'Pin-Priority: -1' \
+        > /etc/apt/preferences.d/no-ros-packages-from-ros2-testing
+
 # Tools and tests assume a UTF-8 locale.
 RUN locale-gen en_US.UTF-8
 ENV LANG=en_US.UTF-8
@@ -83,7 +93,7 @@ RUN apt-get update \
         fakeroot \
     && rm -rf /var/lib/apt/lists/*
 RUN /opt/ci/bin/pip install --no-cache-dir --no-deps \
-        https://github.com/ros2ci-test-ros-world/dyndeb/archive/4d30bcc453e96a00668117f7d8a875e788bf6d77.zip
+        https://github.com/ros2ci-test-ros-world/dyndeb/archive/7a6c8f3cea829c72fc1b04c15aa533d2b8bbb1df.zip
 
 # The job scripts: what runs in the container for each kind of job. Last,
 # because they change most often and everything above stays cached.

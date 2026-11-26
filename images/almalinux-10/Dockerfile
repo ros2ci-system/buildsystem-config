@@ -64,7 +64,8 @@ RUN python3 -m venv --system-site-packages /opt/ci \
         https://github.com/ros2ci-test-ros-world/rosdep/archive/d4f7250da5c27b7a947548ea9fef7534d3bcef73.zip
 ENV PATH=/opt/ci/bin:$PATH
 
-# What a package build needs: rpmbuild, and bloom's dynamic RPM support,
+# What a package build needs: rpmbuild, createrepo_c to describe the
+# packages it built for a repository, and bloom's dynamic RPM support,
 # which is what build.ros2.org builds RHEL 10 packages with. It has two
 # halves, kept at the same version:
 #
@@ -89,6 +90,7 @@ RUN curl -fsSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
         > /etc/yum.repos.d/ros2-testing.repo \
     && dnf install -y \
         bloom-rpm-macros-0.14.4 \
+        createrepo_c \
         python3-dateutil \
         python3-empy \
         python3-packaging \
