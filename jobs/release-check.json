@@ -1,0 +1,13 @@
+{
+  "image": {
+    "build": {
+      "context": "stored:images.tar",
+      "build_file": "ubuntu-26.04/Dockerfile"
+    }
+  },
+  "command": ["/opt/ci/bin/python", "/opt/job-scripts/release.py"],
+  "parameters": {
+    "job": "release_check"
+  },
+  "timeout_seconds": 1800
+}

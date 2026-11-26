@@ -65,6 +65,14 @@ Parameters:
     rosdep keys that are not to be resolved. RPM packages only so far.
 ``revision``
     Which build of this version this is. Default 1.
+``distribution``
+    The releases of the ROS distribution, as the source archive holds
+    them: a list of objects with ``repository``, ``url``, ``version``,
+    ``tag`` and ``packages``, the names of the packages each one holds.
+    rosdep is given this as the distribution file, so that it knows which
+    keys are ROS packages. A release entry in the rosdistro does not list
+    its packages; they are known only from the source. Without this
+    parameter rosdep reads the rosdistro's own distribution file.
 ``repositories``
     Package repositories to install dependencies from, beside the ones the
     image has: a list of objects with ``url``, the repository's root, and
@@ -138,6 +146,7 @@ class Job:
         self.revision = str(params.get('revision', 1))
         self.test = params.get('test', True)
         self.repositories = params.get('repositories', [])
+        self.distribution = params.get('distribution')
         if not re.match(r'^[a-z][a-z0-9_]*$', self.package):
             raise Failure('bad_parameters', '"package" must be the name of a ROS package', EXIT_FAILED)
         if not re.match(r'^[a-z][a-z0-9_]*$', self.rosdistro):
@@ -161,6 +170,18 @@ class Job:
             if not isinstance(key, str) or not key.startswith('-----BEGIN PGP PUBLIC KEY BLOCK-----'):
                 raise Failure('bad_parameters', 'a repository needs a "key": its armored public key', EXIT_FAILED)
 
+        if self.distribution is not None:
+            ok = isinstance(self.distribution, list) and all(
+                isinstance(release, dict)
+                and all(isinstance(release.get(key), str) for key in ('repository', 'url', 'version', 'tag'))
+                and isinstance(release.get('packages'), list)
+                and all(isinstance(name, str) and re.match(r'^[a-z][a-z0-9_]*$', name)
+                        for name in release['packages'])
+                for release in self.distribution)
+            if not ok:
+                raise Failure('bad_parameters', '"distribution" must list releases with their packages',
+                              EXIT_FAILED)
+
         self.version = None
         self.build_type = None
         self.package_name = 'ros-%s-%s' % (self.rosdistro, self.package.replace('_', '-'))
@@ -171,6 +192,7 @@ class Job:
         self.tests = None
         self.tools = {}
         self.rosdep_cache = []
+        self.distribution_sha256 = None
         self.warnings = []
 
         # rosdep is told where the rosdistro is, and nothing else.
@@ -285,7 +307,45 @@ class Job:
             if retry(3, command, env=self.env) != 0:
                 raise Failure('update_failed', 'the system could not be brought up to date', EXIT_INFRASTRUCTURE)
 
+    def write_distribution(self):
+        """
+        Write the distribution file rosdep reads, from the job's releases.
+
+        It is the rosdistro's own file with each release's packages
+        filled in, in the form existing tools read. It is kept with the
+        build, like the rosdep rules.
+        """
+        import urllib.request
+        import yaml
+
+        def fetch(url):
+            for attempt in (1, 2, 3):
+                try:
+                    with urllib.request.urlopen(url, timeout=60) as response:
+                        return yaml.safe_load(response.read().decode())
+                except (OSError, yaml.YAMLError) as e:
+                    if attempt == 3:
+                        raise Failure('rosdistro_unreachable', '%s: %s' % (url, e), EXIT_INFRASTRUCTURE)
+                    time.sleep(10)
+
+        try:
+            index = fetch(self.rosdistro_url + '/index-v4.yaml')
+            entry = index['distributions'][self.rosdistro]
+            original = fetch(self.rosdistro_url + '/' + entry['distribution'][0])
+            platforms = original['release_platforms']
+        except (KeyError, IndexError, TypeError) as e:
+            raise Failure('bad_rosdistro', 'the rosdistro cannot be read: %s' % e, EXIT_FAILED)
+        path = write_local_rosdistro(os.path.join(WORK, 'rosdistro'), self.rosdistro, entry, platforms,
+                                     self.distribution)
+        shutil.copy(path, os.path.join(OUT_DIR, 'distribution.yaml'))
+        self.distribution_sha256 = sha256_of(path)
+        self.env['ROSDISTRO_INDEX_URL'] = 'file://' + os.path.join(WORK, 'rosdistro', 'index-v4.yaml')
+        print('Wrote the distribution file: %d releases, %d packages.' % (
+            len(self.distribution), sum(len(release['packages']) for release in self.distribution)))
+
     def fetch_rules(self):
+        if self.distribution is not None:
+            self.write_distribution()
         os.makedirs(ROSDEP_SOURCES_DIR, exist_ok=True)
         for name in os.listdir(ROSDEP_SOURCES_DIR):
             os.remove(os.path.join(ROSDEP_SOURCES_DIR, name))
@@ -403,6 +463,8 @@ class Job:
                 'rosdistro_url': self.rosdistro_url,
                 'rules': self.rules,
                 'skip_keys': self.skip_keys,
+                # The distribution file written from the job's releases.
+                'distribution_sha256': self.distribution_sha256,
                 'fetched': self.rosdep_cache,
             },
             'tools': self.tools,
@@ -791,6 +853,40 @@ substitutions['Package'] = rosify_package_name(substitutions['Package'], rosdist
 place_template_files(path, package.get_build_type())
 process_template_files(path, substitutions)
 '''
+
+
+def write_local_rosdistro(directory, rosdistro, index_entry, platforms, releases):
+    """
+    Write a rosdistro with one distribution into a new directory, in the
+    form existing tools read, with each release's packages listed.
+
+    ``index_entry`` is the distribution's entry in the original index.
+    ``releases`` is a list of dicts with ``repository``, ``url``,
+    ``version``, ``tag`` and ``packages``, a list of names. Returns the
+    path of the distribution file; the index is ``index-v4.yaml``.
+    """
+    import yaml
+
+    repositories = {}
+    for release in releases:
+        repositories[release['repository']] = {'release': {
+            'packages': sorted(release['packages']),
+            'tags': {'release': release['tag']},
+            'url': release['url'],
+            'version': release['version'],
+        }}
+    os.makedirs(os.path.join(directory, rosdistro))
+    entry = dict(index_entry, distribution=['%s/distribution.yaml' % rosdistro])
+    entry.pop('distribution_cache', None)
+    with open(os.path.join(directory, 'index-v4.yaml'), 'w') as f:
+        f.write('%YAML 1.1\n---\n')
+        yaml.safe_dump({'distributions': {rosdistro: entry}, 'type': 'index', 'version': 4}, f)
+    path = os.path.join(directory, rosdistro, 'distribution.yaml')
+    with open(path, 'w') as f:
+        f.write('%YAML 1.1\n---\n')
+        yaml.safe_dump({'release_platforms': platforms, 'repositories': repositories,
+                        'type': 'distribution', 'version': 2}, f)
+    return path
 
 
 def control_fields(control):

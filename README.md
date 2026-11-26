@@ -51,6 +51,7 @@ kind of job. Every image copies them in.
 |---|---|
 | `core_workspace.py` | Builds a workspace from source and tests it |
 | `package_build.py` | Builds one ROS package as a package of the target: Debian packages in the Ubuntu image, RPM packages in the AlmaLinux image |
+| `release.py` | The release check, which looks at every release in a rosdistro and builds nothing, and the source archive job, which makes the tarball that builds of a release read |
 
 A package build takes the source as a tarball and the package's name:
 
@@ -91,6 +92,42 @@ the package's version ends in it. The job also leaves `repo-metadata.json`,
 which describes each package it built the way the distribution's own tools
 do (`dpkg-deb`, `createrepo_c`). The coordinator checks that description
 when the build is published, and writes the repository's index from it.
+
+A build reads its source from the coordinator's source archive, named by the
+tarball's hash, and is told the releases of the distribution, which is how
+rosdep knows which keys are ROS packages:
+
+```json
+"parameters": {
+  "package": "ament_cmake_core",
+  "distribution": [{"repository": "ament_cmake", "url": "https://...", "version": "2.9.3", "tag": "2.9.3", "packages": ["ament_cmake_core", "..."]}]
+},
+"inputs": [{"name": "source.tar.gz", "url": "archive:4b44be6b..."}]
+```
+
+## Releases
+
+`jobs/release-check.json` and `jobs/source-archive.json` describe the two jobs
+a release goes through before anything is built. `ci-admin release` runs them
+for a rosdistro commit and adds their parameters:
+
+```
+ci-admin release --rosdistro-url https://raw.githubusercontent.com/ros2ci-test-ros-world/rosdistro \
+    --commit <commit> --check-job jobs/release-check.json --archive-job jobs/source-archive.json
+```
+
+- **The release check** reads every release entry. For each one the archive
+  does not hold, it finds the commit the tag names, reads every `package.xml`
+  at the tag, and resolves every rosdep key on every platform the
+  distribution names. It runs nothing from the source. A problem with any
+  release fails the check, and then nothing is archived.
+- **The source archive job** fetches one release at that commit and makes
+  its tarball with `git archive`. The same commit always gives the same
+  tarball.
+- **A release that is archived stays as it is.** The check only looks at its
+  tag again, and reports a tag that now names another commit, or is gone.
+  A changed entry for an archived version is a problem: a change needs a
+  new version.
 
 The Ubuntu image has the ROS package repository for a few tools that are
 packaged only there. apt is told never to take a `ros-*` package from it,
